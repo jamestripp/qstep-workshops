@@ -1,0 +1,144 @@
+---
+title: "2 - Multiple regression"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+Examining the relationship between one predictor and one outcome is fun. But there's much more fun to be had! Most models examine the relationship between an outcome and multiple predictors.
+
+Why look at multiple predictors? Well, let us consider our hypothetical alcohol example. We measure game score after people drank different amounts of alcohol. What is the music at the bar was at different volumes for different people? 
+
+## Another example
+
+This time we'll have 30 people. Each person is given a drink with some alcohol in it. They go into a soundproof room where we play music at one of 2 different volumes. We will have one person in each alcohol and sound condition.
+
+This will make more sense with the data.
+
+```{r}
+rm(list=ls())
+df.as <- data.frame(
+  alcohol = c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100),
+  sound = c(2,2,2,2,2,2,2,2,2,2,8,8,8,8,8,8,8,8,8,8),
+  score = c(400, 390, 380, 370, 360, 350, 340, 330, 320, 310, 320, 290, 170, 162, 160, 150, 140, 130, 120, 110))
+```
+
+## Seeing is believing
+To see what is happening lets visualise the data.
+
+We could use the graphics built into R (as we have before). These base graphics take the regression formula as an argument!
+```{r base plots}
+plot(score ~ alcohol + sound, data = df.as)
+```
+
+What do you think? Does the volume of the sound influence the score? What about alcohol? In fact, or is there a combined effect? So many questions.
+
+Perhaps we should start by exploring the data more. The ggplot package is a nice way to visualise data. It is quite different from base graphics so there is no pressure to learn this.
+
+We can plot the data as follows in ggplot2.
+
+```{r ggplot_intro}
+#install.packages('ggplot2')
+require('ggplot2')
+
+ggplot(data = df.as, aes(x = sound, y = score)) +
+  geom_point()
+
+ggplot(data = df.as, aes(x = sound, y = score, group = sound)) +
+  geom_boxplot()
+
+ggplot(data = df.as, aes(x = alcohol, y = score)) +
+  geom_point()
+```
+
+Hmm, we have both a slope due to alcohol, but also there is worse performance when the music is high. We can see this more clearly when we colour the data by sound.
+
+```{r plot sound and alcohol}
+# We're going to look at a ggplot. For a tutorial on ggplot see https://www.aridhia.com/technical-tutorials/the-fundamentals-of-ggplot-explained/
+#install.packages(ggplot2)
+require(ggplot2)
+ggplot(data = df.as, aes(x = alcohol, y = score, group = sound, colour = as.factor(sound))) +
+  geom_point() +
+  geom_line()
+```
+
+## The "Catwalk" - showing off our models
+
+We might be tempted to fit seperate linear models for each predictor.
+
+```{r single predictor models}
+m1 <- lm(score ~ alcohol, data = df.as)
+m2 <- lm(score ~ sound, data = df.as)
+summary(m1)
+summary(m2)
+```
+
+Alcohol alone seems to be a really bad model whereas sound alone is pretty good. But we know there's more going on. In fact, we want to add both alcohol and sound to the model. The plus operator lets us do this.
+
+```{r standard_model}
+m3 <- lm(score ~ alcohol + sound, data = df.as)
+summary(m3)
+```
+
+That looks much better. Our Multiple R-squared is higher with this more complicated model. However, this might be because there are simple more terms (the model is more flexible). We can use a measure called AIC to penalise the model fit by the number of parameters - the model with alcohol and sound has more paramters beings estimated than the alcohol or sound alone models.
+
+__Side note__ A rather nice psychology paper talking about model complexity can be found [here](http://www.indiana.edu/~clcl/Q550/Lecture_3/Myung_2000.pdf). It is a large discussion.
+
+```{r AICs}
+AIC(m1)
+AIC(m2)
+AIC(m3)
+```
+
+Our two term model (score ~ alcohol + sound) better fits the data even when penalised for being more flexible.
+
+But.... looking at the above plots there might be a synergistic relationships between alcohol and sound. For instance, it looks like the effect of alcohol is different depending on sound. The decrease in performance due to alcohol drops more quickly when the sound is high - people perhaps get overloaded.
+
+```{r sound and alcohol again}
+ggplot(data = df.as, aes(x = alcohol, y = score, group = sound, colour = as.factor(sound))) +
+  geom_point() +
+  geom_line()
+```
+
+This may go beyond your reading, so you may not need to do this. However, the way to do this is with an interaction term.
+
+```{r ah_interactions}
+m4 <- lm(score ~ alcohol + sound + sound*alcohol, data = df.as)
+summary(m4)
+```
+
+Let's run our AIC check.
+
+```{r}
+AIC(m1)
+AIC(m2)
+AIC(m3)
+AIC(m4)
+```
+
+Our interaction model does capture the pattern in the data best. What does our model tell us?
+
+```{r interaction_summary}
+summary(m4)
+```
+
+How should we interpret this? Well, sound makes a big difference to performance. Alcohol along seems not to. Whereas Alcohol combined with noise does. Hmm, perhaps we should leave interactions alone as they are hard to interpret...
+
+## Logistic regression
+
+We can include multiple predictors in logistic regression.
+
+```{r logistic multiple regression}
+df.alcohol <- data.frame(alcohol = c(10, 10,  20, 20, 30, 30, 40, 40, 50, 50, 60, 60, 70, 70, 80, 80, 90, 90, 100, 100),
+                         sound = c(2,8,2,8,2,8,2,8,2,8,2,8,2,8,2,8,2,8,2,8),
+                         result = c(1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0))
+m5 <- glm(formula = result ~ alcohol + sound, data = df.alcohol, family = binomial)
+summary(m5)
+```
+
+## What next?
+
+We have covered what to do for categorical predictors - run a logistic regression - and how bivariate regression can be expanded to include multiple predictors. We also delved into visualising data with ggplot and one way to measure the fit of a model penalising for complexity.
+
+Now, you can explore the British Social Attitudes survey data with your new found regression powers!

@@ -1,0 +1,350 @@
+---
+title: "3 - British Social Attitudes"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+# Outline
+
+We've covered the basics of bivariate regression. Now it is time to tackle real data.
+
+# British Social Attitudes
+
+The BSA is a rich data source and available [here](https://discover.ukdataservice.ac.uk/series/?sn=200006). A copy of the BSA is [here](http://doc.ukdataservice.ac.uk/doc/8252/mrdoc/pdf/8252_bsa_2016_documentation.pdf). There are [technical details](http://www.bsa.natcen.ac.uk/media/39143/bsa34_technical-details_fin.pdf) available which outline how the survey was carried out. The [user guide](http://doc.ukdataservice.ac.uk/doc/8252/mrdoc/pdf/8252_bsa_2016_user_guide.pdf) is useful, too. 
+
+The technical notes also - and very usefully, what nice people! - offer guidance on statistical analysis of the data. The relevent section is at the bottom of the document and is written in readable text. What a relief!
+
+Please download the tab data file containing the BSA responses. You may need to fill in some deails and login using Athens before you can access the data.
+
+## Loadng data
+
+Tab data files are an open format. Each row is on a single line of the file. Columns are seperated by a tab. We can load this data in R using the read.table command. Note, we specify the data having headers and that columns are seperated by the tab character '\t'. 
+
+```{r load_bsa}
+rm(list=ls()) # clear the enviroment
+bsa <- read.table("bsa16_to_ukda.tab", sep="\t", header=TRUE)
+```
+
+## Getting a handle on things
+
+The data set is quite large. We can see exactly how large using ncol and nrow.
+
+```{r n_col_row}
+ncol(bsa)
+nrow(bsa)
+```
+
+We should probably not try to list all 822 variables at once. Instead, we can look at the [documentation](http://doc.ukdataservice.ac.uk/doc/8252/mrdoc/pdf/8252_bsa_2016_documentation.pdf). In the documentation the variable name is given before the question.
+
+R has quite a nice function for looking at the frequency of values called table. We can look at how many people identify as male and female.
+
+```{r table_rep_sex}
+table(bsa$Rsex)
+```
+
+## (more) readable data
+These are actually male and female! Which is which? As we can see these values are integers.
+
+```{r str_Rsex}
+head(bsa$Rsex)
+str(bsa$Rsex)
+```
+
+If we check the user guide then we learn that 1 is Male and 2 is Female. To make our life a little easier we can change these 1s and 2s to categories of Male and Female. The factor function is perfect for this.
+
+```{r logical_intro}
+# Create new factor column in data based on value of Rsex
+bsa$recode.Sex <- factor(x = bsa$Rsex, labels = c('Male', 'Female'))
+
+str(bsa$recode.Sex)
+# we can check and make sure it works
+
+head(bsa$recode.Sex)
+head(bsa$Rsex)
+table(bsa$recode.Sex)
+```
+
+That makes more sense. A quick note for later, for a regression the outcome should be ints or numeric; predictors can be factors with two levels (e.g., Male and Female). For predictors with more than two levels use dummy variables (you may be introduced to these later in your course).
+
+Similiarly, we can change country to factor too.
+
+```{r country_code}
+bsa$recode.Country <- factor(x = bsa$Country, labels = c('England', 'Scotland', 'Wales'))
+head(bsa$recode.Country)
+head(bsa$Country)
+```
+
+We can use table to create frequency table of our different variables. Let's consider how many of each sex we have in each country.
+
+```{r table_country_sex}
+table(bsa$recode.Country, bsa$recode.Sex)
+```
+
+There are more samples from England - as one might expect. What is perhaps surprising is that there are about 1/3 more females than males in England. Why do you think this is?
+
+We can look at this more clearly as proportion of the total samples.
+
+```{r table_prop_country_sex}
+x <- table(bsa$recode.Country, bsa$recode.Sex)
+country.sex.prop <- x/sum(x)
+country.sex.prop
+```
+
+Which we can round to two decimal places for aesthetic reasons.
+
+```{r}
+round(country.sex.prop, digits = 2)
+```
+
+The plot functions can produce different plots depending on the data type of the object you are passing to it. For example, country.sex.prop is a table type.
+
+```{r table_type}
+class(country.sex.prop)
+```
+
+Plotting a table type gives you quite a nice tile plot.
+
+```{r plot_tile_plot}
+plot(country.sex.prop)
+```
+
+But that might not be useful. In this case a table would probably communicate your point more clearly. What do you think?
+
+Making variables into factors lets us select subsets of the data quite easily and with readable code.
+
+```{r pick_england_sample}
+bsa.england <- bsa[bsa$recode.Country == 'England',]
+```
+
+We can also select specific combination of groups.
+
+```{r pick_england_female_sample}
+bsa.england_female <- bsa[bsa$recode.Country == 'England' && bsa$recode.Sex == 'Female',]
+```
+
+To select these data I created a logical index. For example, bsa$recode.Country == 'England' creates a series of TRUE and FALSE values. If the country is England then the value is TRUE and the value if FALSE when the country is something other than England. We can check this too.
+
+```{r table_england_country}
+table(bsa$recode.Country == 'England')
+```
+
+Indexing bsa with this lets us get only those rows where the index is TRUE. We index a data frame using []. So, this gives us all the data where country is England.
+
+```{r pick_england_sample_again}
+bsa.england <- bsa[bsa$recode.Country == 'England',]
+```
+
+We can change other responses to factors for readability.
+
+```{r mass_recode}
+bsa$recode.ChildHh <- factor(bsa$ChildHh, levels = c(1,2,8,9), labels = c('Yes','No', "(Don't know)", '(Refusal)') )
+
+# Do you normally read any daily morning newspaper at least 3 times a week?
+bsa$recode.Readpap <-  factor(bsa$Readpap, levels = c(1,2,8,9), labels = c('Yes', 'No', "(Don't know)", '(Refusal)'))
+
+# How much interest do you generally have in what is going on in politics?
+bsa$recode.Politics <- factor(bsa$Politics, levels = c(1,2,3,4,5,8,9), labels = c('a great deal', 'quite a lot', 'some', 'not very much', 'none at all?', "(Don't know)", '(Refusal)'))
+```
+
+### Group work
+
+Can you table some of these variables? Try producing some of those tile plots.
+Have a look at the questions. Do you think there are any interesting hypothesis you would like to investigate? Note the variable names; they will come in useful later.
+
+Note: To keep the next section simple, try to pick predictors which are likert scales or two level factors (categories with only two values) and outcomes which are likert scales.
+
+## Hypothesis?
+
+We have some predictors from above:
+
+1. Sex
+2. Household Children
+3. Morning newspapers read or not
+4. Interest in politics
+
+The BSA has a considerable number of questions. Using regressions we can try and see if one of these predictors is a significant predictor of a response.
+
+Answering these questions for us is quite straight forward. We will pick a predictor and an outcome using an interesting hypothesis. Then we plot the data, fit a model and see if there is a significant trend.
+
+*Note* We have intentionally chosen outcome variables on a likert scale. A likert scale is a response such as strongly agree(1), agree(2), neither agree or disagree(3), disagree(4), strongly disagree(5). We can assume there is an ordering to these responses where 1<2<3<4<5. For demonstration purposes we will consider these to be continious variables. However, some argue that the distance between 1-2 may not be the same as 2-3. An alternative way to analyse this data is an ordinal logistic regression. Logistic regression is beyond this session so we will focus on bivariate regression.
+
+### Round one
+
+1. Men [recode.Sex] are more likely than women to think that going to work will improve back problems which are starting to heal[PhsRecov].
+
+_And thinking of this same person who has been off work from their office job with a back problem, but is starting to feel better. How strongly do you agree or disagree that, in principle, going back to work quickly will help speed their recovery?_
+
+Our predictor is recode.Sex and our outcome is PhsRecov. The documentation gives PhsRecov as
+
+[PhsRecov]
+CARD B13
+And thinking of this same person who has been off work from their office job with a back problem, but is starting to feel better. How strongly do you agree or disagree that, in principle, going back to work quickly will help speed their recovery?
+1 Agree strongly
+2 Agree
+3 Neither agree nor disagree
+4 Disagree
+5 Disagree strongly
+8 (Don't know)
+9 (Refusal)
+
+We are going to consider only those people who gave a 1 to 5 response. The reason for this is that we get to keep a nice likert scale. We can subset this data as so:
+
+```{r subset_PhsRecov}
+bsa.recov <- bsa[bsa$PhsRecov < 6,]
+
+# let us check to make sure all our chosen responses are less than 6
+table(bsa.recov$PhsRecov)
+```
+
+We are not going to convert our outcome to a factor. This is because our outcome needs to be a continious variable (a number). 
+
+Let us look at our data.
+
+```{r recodesex_by_PhsRecov}
+plot(bsa.recov$recode.Sex, bsa.recov$PhsRecov)
+```
+
+This is a boxplot. This type of visualisation is useful as it shows us where most of our data is. The thick black line is the median - where most of our data is - and the box is where 95% of our data is. We see that men generally tend to give a response of 2 - they agree that you should go back to work if your back has recovered a little. Women, on the other hand, tend to neither agree or disagree.
+
+If you prefer to see the raw data instead of the boxplot, then convert recode.Sex to a number before plotting.
+
+```{r recodesex_by_PhsRecov_numeric}
+plot(as.numeric(bsa.recov$recode.Sex), bsa.recov$PhsRecov)
+```
+
+We have lots of data and responses of either 1, 2, 3, 4 or 5. Moving the points might be more useful.
+
+```{r recodesex_by_PhsRecov_numeric_jitter}
+plot(jitter(as.numeric(bsa.recov$recode.Sex), factor=0.5), bsa.recov$PhsRecov)
+```
+
+That is pretty useless. How about a table instead?
+
+```{r recode_PhsRecov_table}
+x <- table(bsa.recov$recode.Sex, bsa.recov$PhsRecov)
+plot(x)
+```
+
+That's quite nice. 
+
+So, do you think sex has an influence? It would seem so. But we should run the linear model to check.
+
+```{r m1}
+m1 <- lm(PhsRecov ~ recode.Sex, data = bsa.recov)
+m1
+```
+
+0.1607 looks small. But remember, this is in the units of the predictor. On a 6 point scale this is quite big. Lets plot the model to get a better look.
+
+```{r m2}
+plot(bsa.recov$recode.Sex, bsa.recov$PhsRecov)
+abline(m1)
+```
+
+Which is actually quite significant.
+
+```{r m1_summary}
+summary(m1)
+```
+
+People who identify as men tend go think you can go back to work with a partially healed back.
+
+Hmm, this feels a little like a tabloid headline. Let's see if we can do any better.
+
+### Round two
+
+2. Those most interested in politics are least satisfied with the NHS.
+
+We have two questions which are on a likert scale: [Politics] and [NHSSat].
+
+[Politics]
+How much interest do you generally have in what is going on in politics ...READ OUT ...
+1 ... a great deal,
+2 quite a lot,
+3 some,
+4 not very much,
+5 or, none at all?
+8 (Don't know)
+9 (Refusal)
+
+[NHSSat]
+CARD C1
+All in all, how satisfied or dissatisfied would you say you are with the way in which the National Health Service runs nowadays?
+Choose a phrase from this card.
+1 Very satisfied
+2 Quite satisfied
+3 Neither satisfied nor dissatisfied
+4 Quite dissatisfied
+5 Very dissatisfied
+8 (Don't know)
+9 (Refusal)
+
+We can remove the don't know and refusal responses. Like above, we will create a subset of the data. We want only data with GovTrust < 8 and Politics < 8. Note we are going to take the raw data rather than our recoded data.
+
+```{r pol_NHS_subset}
+bsa.polNHS <- bsa[bsa$Politics < 8,]
+bsa.polNHS <- bsa.polNHS[bsa$NHSSat < 8,]
+# table to make sure
+table(bsa.polNHS$Politics, bsa.polNHS$NHSSat)
+```
+
+We can now change our predictor to a factor for plotting and readability reasons.
+
+```{r}
+# How much interest do you generally have in what is going on in politics?
+bsa.polNHS$recode.Politics <- factor(bsa.polNHS$Politics, levels = c(1,2,3,4,5), labels = c('a great deal', 'quite a lot', 'some', 'not very much', 'none at all?'))
+```
+
+
+And we plot the data, adding labels to make things more readable.
+
+```{r pol_NHS_plot}
+plot(bsa.polNHS$recode.Politics, bsa.polNHS$NHSSat, xlab = 'Trust in Politics', ylab = 'NHS Satisfaction')
+```
+
+Hmm, that doesn't look encouraging. Let's fit the model anyhow and check.
+
+```{r pol_NSHSat_m2}
+m2 <- lm(NHSSat ~ Politics, data = bsa.polNHS)
+```
+
+What does the summary show?
+
+```{r m2_summary}
+summary(m2)
+```
+
+What would you expect if we plot the model? Remember the coefficient for Politics is small.
+
+```{r m2_plot}
+# We will plot the recoded variable for our labels
+plot(bsa.polNHS$Politics, bsa.polNHS$NHSSat, xlab = 'Trust in Politics', ylab = 'NHS Satisfaction')
+abline(m2)
+```
+
+You guessed it, a staight line. Statistics is often like this. Sometimes you find cool stuff and sometimes nothing is significant. The key is to keep at it.
+
+Although not entirely accurate, we can create a nicer plot by using our recoded variables.
+
+```{r m2_recode_plot}
+# We will plot the recoded variable for our labels
+plot(bsa.polNHS$recode.Politics, bsa.polNHS$NHSSat, xlab = 'Trust in Politics', ylab = 'NHS Satisfaction')
+abline(m2)
+```
+
+### Group work
+
+We have covered a lot. Fitting models, plotting data and interpreting statistics. Then there is creating factors and the other fun R stuff we've covered. We have also had a success and apparent failure. 
+
+Now is your chance to dive into the data. In your groups come up with some interesting hypothesis. Then do the following:
+
+* State your hypothesis
+* Summarise your data. Decide how to present the responses to a reader.
+* Fit a linear model. Plot the fit of the model and interpret the output. You may want to include confidence intervals too.
+* Answer your hypothesis.
+
+James will be going around the groups supporting you all. If you have any questions then put your hand up.
+
+Good luck!

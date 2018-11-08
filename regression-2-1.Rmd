@@ -1,0 +1,214 @@
+---
+title: "1 - Logistic Regression"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+# A model for almost every occasion
+
+Statistical models describe data and relationships within data in a simple way. Different models are required for different types of data. Last workshop we looked at the bivariate regression. But what do we do to model data where:
+
+* there is more than one predictor?
+* your outcome is categorical?
+
+To deal with these types of data we need to go beyond the bivariate regression.
+
+Deciding which model to use is challenging. Thankfully, statistical textbooks often have decision trees to guide you. I rather like the book [Discovering Statistics using R](https://www.amazon.co.uk/Discovering-Statistics-Using-Andy-Field/dp/1446200469) and I have uploaded the decision tree at [https://files.warwick.ac.uk/jamestripp/files/DecisionTree-DiscoveringStatisticsUsingR.pdf](https://files.warwick.ac.uk/jamestripp/files/DecisionTree-DiscoveringStatisticsUsingR.pdf) for your viewing pleasure. 
+
+__Note:__ This decision tree is from a textbook written by a psychologist and so you can replace ANOVA with linear regression in most cases.
+
+In this document, we will use a logistic regression. Following the above decision tree it tells us that logistic regressions are suitable for data with a categorical outcome, and one or more predictors which are either categorical or continious (e.g., predicting yes/no responses using likert scale responses).
+
+## Logistic regression
+Logistic regression is used when the outcome is categorical - such as a yes or no answer - and the predictor is continious - such as age or a likert scale response.
+
+In a logistic regression, the linear regression predictions are passed through a logit function. That sounds tricky. In reality a logit function scales value between 0 and 1 in a sinusoidal way. The function is called a link function - it links the regression predictions to the data.
+
+To remind ourselves, this is the linear regression equation with one predictor and outcome:
+
+$$
+outcome_i = \alpha +  \beta \cdot predictor_i + \epsilon
+$$
+
+For a logistic regression this becomes,
+
+$$
+P(outcome_i) = \frac{1}{1 + \exp^{-(\beta \cdot predictor_i + \alpha)}} + \epsilon
+$$
+
+where the probablity of choosing the outcome (1) is the result the regression put through a logistic function.
+
+So, what is a logistic function. Simply put, it takes in values and gives us results which between 0 and 1 in an S shape.
+
+```{r logistic_function}
+logistic <- function(x){
+  1/(1 + exp(-x))
+}
+plot(logistic(-10:10), type = 'l', xlab = 'x', ylab = 'logistic(x)')
+```
+
+I like to think of it as a quick fix someone put together - possibly in a pub - to make a regression work with those darned binary (0 and 1) variables.
+
+# Our example
+
+We are going to fit and explore a basic logistic regression model. We need data for this.
+
+Let's return to our 'drinking approach' from the linear regression workshop. Last time we asked our fictional people to play a computer game. I think we were too kind to them last time. Instead, we will ask them to solve a complex maths question. They can either fail or succeed.
+
+1. We recruit 20 students.
+2. Each student is given a different amount of alcohol mixed with water.
+3. Participant try to complete a complex maths question. They either succeed (1) or fail(0).
+
+Let's clear our R enviroment.
+
+```{r clean_enviroment}
+rm(list=ls())
+```
+
+and define our hypothetical data.
+
+```{r create_data}
+df.alcohol <- data.frame(alcohol = c(10, 10,  20, 20, 30, 30, 40, 40, 50, 50, 60, 60, 70, 70, 80, 80, 90, 90, 100, 100),
+                         result = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0))
+```
+
+# Analysis
+
+## Looking at the data
+What do we have? We can print out the data
+
+```{r print_data}
+df.alcohol
+```
+
+but it probably makes more sense to tidy it up. Those 0s and 1s should be fail or succeed. Factor allows us to deal with this.
+
+```{r recode_result}
+df.alcohol$recode <- factor(df.alcohol$result, labels = c('Fail', 'Succeed'))
+```
+
+We should double check that works
+
+```{r show_after_recode}
+df.alcohol
+```
+
+and plot the data if we have lots of data.
+
+```{r plot_data}
+plot(df.alcohol$alcohol, df.alcohol$result)
+```
+or to look at it another way,
+
+```{r table_data}
+table(df.alcohol$alcohol, df.alcohol$recode)
+```
+
+What do you think is happening? Does alcohol free the mind and enable us to overcome the complexity of math? Or is it an inhibiter to all things numeric?
+
+## Modeling
+
+A logistic regression is a generalized linear model. We have taken our basic linear model and generalized it by putting the predictions through a logistic function. Unsuprisingly, the function we use for a logistic model is glm (generalized linear model). We can fit the model like so:
+
+```{r logistic_model_fit}
+m1 <- glm(result~alcohol, data = df.alcohol, family = 'binomial')
+```
+
+You may - quite resonably - be wondering what the family argument does. The logistic function gives us values between 0 and 1. The binomial probability distribution allows us find the probablity of these value given the data. In essance, it is useful for fitting the model. Exactly why goes beyond this workshop.
+
+### Interpreting the results
+Does alcohol help bring out the genius in us all?
+
+```{r model_summary}
+summary(m1)
+```
+
+Alcohol does make a significant difference! There are a few points to make about this output:
+
+1. The coefficients are in units before the logistic function is applied. You can convert the coefficient to probability as follows.
+
+```{r}
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+
+logit2prob(coef(m1))
+```
+
+Though most people do not do this and it is tricky to interpret.
+
+2. The AIC is a penalised measure of model fit. The details go beyond this session. Essentailly the log likelihood of the data given the model is added the the number of free parameters. You probably do not need to know this at this point. Feel free to forget the last sentence (or google it for more fun!).
+
+__Note:__ You are very welcome to skip the next few paragraphs and go onto plots.
+
+We can calculate something like R for logistic regression. The statistic is called McFadden's R squared. We can use code shown [here](http://thestatsgeek.com/2014/02/08/r-squared-in-logistic-regression/) and for those geeks like me who like lists, there is a list of the commonly encountered R squared values [here](https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/). 
+
+We take the ratio of a 'measure of the model fit' (the log likelihood; not exactly a measure of fit but close) for our model with and without alcohol as a predictor. If this ratio is 1 then the models fit the data equally well, and 1 - this ratio = 0. Better fits produce smaller log likelihoods. A better fitting model (vs the null model) gives use values approaching 1 because the value of the ratio decreases.
+
+```{r rsquared_experimental}
+mod <- glm(result~alcohol, data = df.alcohol, family = binomial)
+nullmod <- glm(result~1, data = df.alcohol, family = binomial)
+1-logLik(mod)/logLik(nullmod)
+```
+
+### Checking our intuition
+
+Above we talked about the equation for a logistic regression. Putting in our variable names it should be,
+
+$$
+P(succeed_i) = \frac{1}{1 + \exp^{-(\beta \cdot alcohol_i + \alpha)}} + \epsilon
+$$
+
+So we will put our money where our mouth is, so to speak. The predictions of the model are
+
+```{r model_pred}
+m1$fitted.values
+```
+
+and putting these into our logistic regression equations
+
+```{r can_we_generate_the_predictions_ourselves}
+coef(m1)
+df.alcohol$pred <- 1/(1+exp(-((-0.1295437*df.alcohol$alcohol) + 8.4252071)))
+```
+
+Success. We have the correct logistic regression equation.
+
+### Plots!
+
+Enough nerding out, let's create some nice plots of our data, model and confidence intervals.
+
+Like the standard regression, we can generate our predicted data and confidence interval.
+
+```{r plot_predictions}
+df.new <- data.frame(alcohol = c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
+preds <- predict(m1, df.new, type="response", se.fit=TRUE)
+
+#For the plot, I want the predicted probabilities +/- 1.96 standard errors (that’s the 95% confidence interval; use qnorm(0.975) if 1.96 is not precise enough). I extract and calculate the values for each line separately to better understand the code. - taken from https://druedin.com/2016/01/16/predicted-probabilities-in-r/
+predf <- preds$fit # predicted
+lower <- preds$fit - (1.96*preds$se.fit) # lower bounds
+upper <- preds$fit + (1.96*preds$se.fit) # upper bounds
+
+plot(seq(from=10, to = 100, by = 10), preds$fit, type="l", ylab="Predicted Probability to succeed on maths question", xlab="Alcohol(ml)", bty="n")
+lines(seq(from=10, to = 100, by = 10), lower, lty=2, col = 'red')
+lines(seq(from=10, to = 100, by = 10), upper, lty=2, col = 'red')
+points(df.alcohol, col = 'blue')
+```
+
+Our data points overlap. Two people take each amount of alcohol (i.e., two people had 10ml of alcohol in their drinks, two people had 20ml of alcohol in their drinks, etc.). It might be clearer to plot a histogram of the data - especially if there is a lot of data. We can use the popbio package to do this without much work. I added confidence intervals for completeness.
+
+```{r plot_model}
+install.packages('popbio', repos='https://cloud.r-project.org')
+require(popbio)
+logi.hist.plot(df.alcohol$alcohol, df.alcohol$result, boxp=FALSE, type='hist', col='gray')
+lines(seq(from=10, to = 100, by = 10), lower, lty=2, col = 'red')
+lines(seq(from=10, to = 100, by = 10), upper, lty=2, col = 'red')
+```
+
+Thank you for your patience. You can now fit, start to interpret and create pretty plots for logistic regressions in R. Hurrah!
+
+There is now time for some questions.

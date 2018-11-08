@@ -1,0 +1,427 @@
+---
+title: "R Workshop 2 (Term 2)"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+# Introduction
+
+Hello everyone! Here is a chance to explore some of the code and concepts covered in your QS903 lectures.
+
+Specifically, we cover:
+
+* The curve function
+* The %*% operator
+* The proportional odds model (for ordered categorical outcomes)
+* The multinomial model (for unordered categorical outcomes)
+
+You have also covered the multi-level models. These are cool and exciting! However, we are limited to two hours. So this workshop focuses on the models you may use in your first assignments.
+
+# The curve function
+
+Imagine you want to plot a function. One way to do this is to define a function,
+
+```{r myFunction}
+myInverseLogit <- function(x){
+  exp(x)/(1+exp(x)) # this is the inverse logit function, btw
+}
+```
+
+generate some value from the function
+
+```{r functionPredictions}
+x <- seq(from = -5, to = 5, by = 0.1)
+y <- myInverseLogit(x)
+```
+
+and then plot a line using those values
+
+```{r plotFunctionPredictions}
+plot(x, y, type = 'l', ylab = 'myInverseLogit(x)') # type is line 'l'
+```
+
+The curve function combines generating predictions and plotting a line into one command.
+
+```{r curve}
+curve(expr = myInverseLogit, from = -5, to = 5, n = 100)
+```
+
+Nice. You may remember using the inverse logit function for the logit model. The invlogit function from the arm package you gives us the same predictions.
+
+```{r arm_invlogit}
+require(arm)
+curve(expr = invlogit, from = -5, to = 5, n = 100)
+```
+
+An interesting feature of curve is that it is easy to overlay a curve onto a base R plot. 
+
+```{r addCurve}
+x <- seq(from = -5, to = 5, by = 1)
+plot(x = x, y = invlogit(x))
+curve(expr = invlogit, from = -5, to = 5, n = 100, add = TRUE, col = 'pink') # note add is TRUE
+```
+
+Without the add parameter curve creates a new plot.
+
+```{r oopsCurve}
+x <- seq(from = -5, to = 5, by = 1)
+plot(x = x, y = invlogit(x))
+curve(expr = invlogit, from = -5, to = 5, n = 100, col = 'purple')
+```
+
+# The %*% operator
+
+This is the maxtix multiplication operator. Let us take a [simple example](https://www.mathsisfun.com/algebra/matrix-multiplying.html).
+
+We will define two matrices from the example in the link above.
+
+```{r matrices}
+a <- matrix(data = c(1,4,2,5,3,6), nrow = 2, ncol = 3)
+b <- matrix(data = c(7,9,11,8,10,12), nrow = 3, ncol = 2)
+print(a)
+print(b)
+```
+
+and then use the matrix multiplication operator to calculate the dot product.
+
+```{r dotProduct}
+print(a %*% b)
+```
+
+In the lecture notes, the inverse logit was used to generate predictions which were drawn onto a plot using the curve function.
+
+# The proportional odds model
+
+Let us walk through the multinomial example given in the lecture for week 3.
+
+Load in the data.
+
+```{r lecture_propOdds_data}
+library(car)
+data(Womenlf) # load in the womenlf data
+head(Womenlf) # top of data
+str(Womenlf) # structure of the data
+```
+
+The structure shows us there are 3 factors and 1 integer. For the proportional odds model we want to set our outcome as an ordered factor. Recoding is simply adding some meta data to a series of strings (e.g., category labels, order of categories, etc.).
+
+Let us recode the partic variable. To illustrate how recoding works we will turn partic into a string, string to factor, and ordered factor.
+
+```{r recoding}
+
+a <- as.character(Womenlf$partic)
+b <- as.factor(Womenlf$partic)
+c <- ordered(Womenlf$partic, 
+             levels = c('not.work', 'parttime', 'fulltime'))
+Womenlf$status <- ordered(Womenlf$partic, 
+             levels = c('not.work', 'parttime', 'fulltime'))
+class(a)
+class(b)
+class(c)
+```
+
+```{r recoding_structure}
+str(a)
+str(b)
+str(c)
+```
+
+The ordered factor is entered as an outcome in a proportional odds model. We want to examine the impact of the presence of children and husbands income predicts the work status of women.
+
+```{r polr}
+library(MASS)
+fit.pom <- polr(status ~ hincome + children,
+               data=Womenlf)
+summary(fit.pom)
+```
+
+To interpret these results we calculate predicted probabilities. We have two cuts: not.work|parttime and parttime|fulltime. Using the coefficients for these cuts we can calculate the probabilities.
+
+For the first cut
+
+$$P(not working) = 1 - logit^{-1}(-0.5 \cdot hincome - 2 \cdot childrenpresent + 1.9)$$
+
+which in R with no children and a husband income of 10 is
+
+```{r basicProb}
+print('The coefficients of the model are')
+coef(fit.pom)
+
+print('The sum of multiplying each predictor value by the corresponding coefficient is')
+cbind(10,0)%*%coef(fit.pom)
+
+print('Probability of not working with no children and a husbands income of 10')
+1 - invlogit(cbind(10,0)%*%coef(fit.pom) + 1.9)
+
+# note we multiply the values of children present (0) and husbands income (10) 
+# by the corresponding coefficients using the matrix multiplication
+
+```
+
+You are given a neat function to calculate these values for each of the three categories for the corresponding values of hincome and child.
+
+```{r firstCuttoff}
+require(arm)
+p.pom <- function(X, fit){
+  b <- coef(fit)
+  cuts <- fit$zeta
+  p1 <- 1 - invlogit(X%*%b - cuts[1])
+  p2 <- invlogit(X%*%b - cuts[1]) - 
+    invlogit(X%*%b - cuts[2])
+  p3 <- invlogit(X%*%b - cuts[2])
+  cbind(p1, p2, p3)
+}
+```
+
+For example, the probablity predicted by the model when a husbands income is 10 and there is no child is
+
+```{r pomExample}
+p.pom(c(10,0), fit.pom)
+```
+
+It is more likely that a women will work if the husband has an income of 10 and there is no child. Whereas if the husband is on a high income and there is a child then
+
+```{r secondPomExample}
+p.pom(c(40,1), fit.pom)
+```
+
+You were shown in the lecture how to plot the probability curves for each category.
+
+```{r plotChildrenAbsent}
+plot(c(1,45), c(0,1), type="n", main="Children absent",
+     xlab="Husband's income", ylab="Pred. Probability")
+curve(p.pom(cbind(x,0), fit.pom)[,1], add=TRUE, lty=1)
+curve(p.pom(cbind(x,0), fit.pom)[,2], add=TRUE, lty=2)
+curve(p.pom(cbind(x,0), fit.pom)[,3], add=TRUE, lty=3)
+# From and To not given so over plot range
+legend("topright", lty=1:3, 
+       c("not working", "part-time","full-time"), 
+       bty="n")
+```
+
+```{r plotChildrenPresent}
+plot(c(1,45), c(0,1), type="n", main="Children present",
+xlab="Husband's income", ylab="Pred. Probability")
+curve(p.pom(cbind(x,1), fit.pom)[,1], add=TRUE, lty=1)
+curve(p.pom(cbind(x,1), fit.pom)[,2], add=TRUE, lty=2)
+curve(p.pom(cbind(x,1), fit.pom)[,3], add=TRUE, lty=3)
+legend("topleft", lty=1:3, 
+       c("not working", "part-time","full-time"), 
+       bty="n")
+```
+
+## Diagnostics
+
+How can we tell is our model is doing a good job? Or is the data is probably unordered?
+
+Well, we can look at the residuals. The diffence betweeen the expected value and the observed value.
+
+```{r residuals}
+y = as.numeric(Womenlf$status)
+expected.value = fitted(fit.pom)%*%c(1,2,3)
+residual = y - expected.value
+```
+
+The plot used in the lecture is a binned plot. You can look at the help functions for this using ?binnedplot. 
+
+```{r binnedPlot}
+binnedplot(expected.value, residual, nclass=7)
+?binnedplot
+```
+
+How does that look to you? Does it look quite reasonable?
+
+If we look at this for children.
+
+```{r residualChildren}
+binnedplot(as.numeric(Womenlf$children), residual, xlab="Children")
+```
+
+Thoughts?
+
+How about for husbands income?
+
+```{r residualIncome}
+binnedplot(as.numeric(Womenlf$hincome), residual,  nclass = 7, xlab = "Husbands income")
+```
+
+It seems there is a falling pattern of the residuals. Perhaps status is unordered!
+
+Time to panic? Nah, we have a model for unordered categorical data.
+
+# Multinomial Logit Model
+
+The model can fit categorical outcomes without an order.
+
+```{r fitMultinomial}
+require(nnet)
+fit.mlm <- multinom(status ~ hincome + children,
+                    data = Womenlf)
+summary(fit.mlm)
+```
+
+And to calculate the probability of the second category (full-time) is,
+
+$$P(\textit{part-time}) = \frac{\exp(X_{i}\beta_{2})}{1 + \exp(X_{i} \beta_{2}) + \exp(X_{i} \beta_{3})}$$
+
+Which where there is no child and the husbands income is 10 is,
+
+```{r multinomialPrediction}
+X <- cbind(1, 10, 0)
+b <- coef(fit.mlm)
+exp(X%*%b[1,]) /
+  (1 + exp(X%*%b[1,]) + exp(X%*%b[2,]))
+```
+
+Andreas provides you with a nifty function to calculate the probabilities of all the categories.
+
+```{r allTheCategories}
+
+p.mlm <- function(X, fit){
+  b <- coef(fit)
+  p2 <- exp(X%*%b[1,]) /
+    (1 + exp(X%*%b[1,]) + exp(X%*%b[2,]))
+  p3 <- exp(X%*%b[2,]) /
+    (1 + exp(X%*%b[1,]) + exp(X%*%b[2,]))
+  p1 <- 1 - p2 - p3
+  cbind(p1, p2, p3)
+}
+
+```
+
+So, the 
+
+```{r multinomExample}
+p.mlm(c(1,10,0), fit.mlm)
+```
+
+When there is no child and the husbands income is 10 then it is most likely a women is working full time.
+
+As before, we can plot the predicted probablities for when there is no child
+
+```{r mlmNoChild}
+plot(c(1,45), c(0,1), type="n", main="Children absent",
+xlab="Husband's income", ylab="Pred. probability")
+curve(p.mlm(cbind(1,x,0), fit.mlm)[,1], add=TRUE, lty=1)
+curve(p.mlm(cbind(1,x,0), fit.mlm)[,2], add=TRUE, lty=2)
+curve(p.mlm(cbind(1,x,0), fit.mlm)[,3], add=TRUE, lty=3)
+legend("topright", lty=1:3, c("not working","part-time",
+"full-time"), bty="n")
+```
+
+and when there is a child
+
+```{r mlmChild}
+plot(c(1,45), c(0,1), type="n", main="Children present",
+xlab="Husband's income", ylab="Pred. probability")
+curve(p.mlm(cbind(1,x,1), fit.mlm)[,1], add=TRUE, lty=1)
+curve(p.mlm(cbind(1,x,1), fit.mlm)[,2], add=TRUE, lty=2)
+curve(p.mlm(cbind(1,x,1), fit.mlm)[,3], add=TRUE, lty=3)
+legend("topleft", lty=1:3, c("not working","part-time",
+"full-time"), bty="n")
+```
+
+We need to look at the residuals per category.
+
+```{r per_category}
+# predicted probabilities
+p.ful = fitted(fit.mlm)[,"fulltime"]
+p.par = fitted(fit.mlm)[,"parttime"]
+p.not = fitted(fit.mlm)[,"not.work"]
+# observed outcomes as binary variables
+y.ful = ifelse(Womenlf$status=="fulltime", 1, 0)
+y.par = ifelse(Womenlf$status=="parttime", 1, 0)
+y.not = ifelse(Womenlf$status=="not.work", 1, 0)
+# residuals = observed - predicted
+r.ful = y.ful - p.ful
+r.par = y.par - p.par
+r.not = y.not - p.not
+```
+
+We can examine these in detail if needed. The ifelse statements return a 1 is the first argument is TRUE and 0 if it is FALSE.
+
+Which we can then plot.
+
+```{r binplot1}
+binnedplot(p.ful, r.ful, nclass=7, xlab = 'Predicted probability', main = 'Full-time')
+```
+
+```{r binplot2}
+binnedplot(p.par, r.par, nclass=7, xlab = 'Predicted probability', main = 'Part-time')
+```
+
+```{r binplot3}
+binnedplot(p.not, r.not, nclass=7, xlab = 'Predicted probability', main = 'Not working')
+```
+
+And once again by a predictor (husband's income)
+
+```{r mlmPredictorBin}
+par(mfrow = c(1,3), mar = c(3,4,2,1), mgp = c(2,.7,0), cex=1.2)
+binnedplot(Womenlf$hincome, r.ful, nclass = 7, xlab = 'Husbands income', main = 'Full-time')
+binnedplot(Womenlf$hincome, r.par, nclass = 7, xlab = 'Husbands income', main = 'Part-time')
+binnedplot(Womenlf$hincome, r.not, nclass = 7, xlab = 'Husbands income', main = 'Not working')
+```
+
+Does the multinomial model do better? Does a model with unordered categories outperform a model with ordered categories?
+
+Andreas uses an informal test of the proportional odds assumption.
+
+```{r propOddsAssum}
+c(deviance(fit.pom), deviance(fit.mlm), fit.pom$edf, fit.mlm$edf)
+```
+
+A reduction in deviance of 19 with only 2 more parameters is not too bad. This is only an informal test though. Generally the models predictions are similiar, which is also reassuring.
+
+# Things to do
+
+We have reconsidered the code presented by Andreas in your week 3 lecture. Now you are going to use this code to understand new data sets. There are 3 data sets:
+
+* Student survey
+* Marvel comic characters
+* DC comic characters
+
+## Student survey
+
+In the MASS package is a data set called 'survey'. It is a survey of 271 University students.
+
+```{r surveyLoad}
+require(MASS)
+data('survey')
+str(survey)
+
+# you may need to remove NA values using is.na
+```
+
+Your job is to address the question:
+
+* Do age and sex contribute to a students probability of smoking?
+
+## Marvel and DC
+
+The blog fivethirtyeight published an analysis of [comic book characters and gender](https://github.com/fivethirtyeight/data/tree/master/comic-characters). This is quite a fun data set.
+
+```{r comicBookCharacters} 
+
+dc <- read.csv(file = 'https://github.com/fivethirtyeight/data/blob/master/comic-characters/dc-wikia-data.csv?raw=true',
+                    stringsAsFactors = FALSE)
+
+marvel <- read.csv(file = 'https://github.com/fivethirtyeight/data/blob/master/comic-characters/marvel-wikia-data.csv?raw=true',
+                    stringsAsFactors = FALSE)
+
+print('The DC data set')
+str(dc)
+
+print('The marvel data set')
+str(marvel)
+# you will need to recode data using factor and ordered
+```
+
+For each data set, can you find out:
+
+* How does the sex (gender) and year of introduction contribute to the alignment of comic book characters?
+* Does this differ between DC and Marvel?
+
+Good luck!

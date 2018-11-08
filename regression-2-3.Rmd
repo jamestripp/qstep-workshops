@@ -1,0 +1,113 @@
+---
+title: "3_-_BSA"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+# BSA
+
+The code below loads the BSA data. Then we look at two example models. These are examples. Feel free to add your own.
+
+```{r load_bsa}
+rm(list=ls())
+d <- read.table(file = 'bsa16_to_ukda.tab', header = TRUE, sep = '\t')
+```
+
+## Multiple regression
+
+How is satisfaction with the NHS related to newspaper reading and personal access to the internet?
+
+Let's look at the questions in the [documentation](http://doc.ukdataservice.ac.uk/doc/8252/mrdoc/pdf/8252_bsa_2016_documentation.pdf).
+
+[Readpap]
+Do you normally read any daily morning newspaper at least 3 times a week?
+1 Yes
+2 No
+8 (Don't know)
+9 (Refusal)
+
+[IntPers]
+Do you personally have access to the internet, either at home, at work, or elsewhere, or on a smartphone, tablet or other mobile device?
+1 Yes
+2 No
+8 (Don't know)
+9 (Refusal)
+
+[NHSSat]
+CARD C1
+All in all, how satisfied or dissatisfied would you say you are with the way in which the National Health Service runs nowadays?
+Choose a phrase from this card.
+1 Very satisfied
+2 Quite satisfied
+3 Neither satisfied nor dissatisfied
+4 Quite dissatisfied
+5 Very dissatisfied
+8 (Don't know)
+9 (Refusal)
+
+```{r data prep}
+d.1 <- d[d$Readpap < 8,]
+d.1 <- d.1[d.1$IntPers < 8,]
+d.1 <- d.1[d.1$NHSSat < 8,]
+d.2 <- d.1[,c('Readpap', 'IntPers', 'NHSSat')]
+```
+
+```{r data recode}
+d.2$recode.Readpap <- factor(x = d.2$Readpap, labels = c('Readpap-Yes', 'Readpap-No'))
+d.2$recode.IntPers <- factor(x = d.2$IntPers, labels = c('IntPers-Yes', 'IntPers-No'))
+table(d.2$recode.Readpap, d.2$recode.IntPers, d.2$NHSSat)
+```
+
+
+```{r ex1 data plotting}
+require(ggplot2)
+ggplot(data = d.2, aes(x = NHSSat)) +
+  geom_histogram(bins = 30) +
+  facet_grid(recode.IntPers~recode.Readpap)
+```
+
+```{r ex1 model_fit}
+ex1.m <- lm(NHSSat ~ IntPers + Readpap, data = d.2)
+summary(ex1.m)
+ex2.m <- lm(NHSSat ~ IntPers + Readpap + IntPers * Readpap, data = d.2)
+summary(ex2.m)
+AIC(ex1.m)
+AIC(ex2.m)
+```
+
+```{r}
+ggplot(data = d.2, aes(x = NHSSat)) +
+  geom_histogram(bins = 30) +
+  facet_grid(~recode.IntPers)
+```
+
+What do you think this means? How would you interpret these results?
+
+## Multiple logistic regression
+
+What about if we turn one of these predictors into our outcome? Can reading newspapers and satisfaction with the NHS explain much of the variance in internet access? I have intentionally picked a possibly senseless analysis as you should consider the question asked by your analysis carefully.
+
+Let's try this model out anyway.
+
+As IntPers is 1 or 2, we should change this to 0 and 1. As 1 is yes, we will change 2 to 0 - so no is 0. Then we will fit the model.
+
+```{r ex2 model fit}
+d.2$logistic.IntPers <- d.2$IntPers
+d.2$logistic.IntPers[d.2$logistic.IntPers == 2] <- 0
+ex2.m <- glm(formula = logistic.IntPers ~ NHSSat + Readpap, family = binomial, data = d.2)
+summary(ex2.m)
+```
+
+Both seem to be significant predictors of if a person responds yes to a question about if they have internet access. 
+
+# Over to you
+
+The above are simple models. They show how you can use multiple linear and logistic regressions with the BSA data. Our choice of variables is perhaps questionable. Can you do any better? What sort of hypothesis can you investigate with the BSA data set?
+
+Some points to consider:
+
+* Sample sizes
+* Does the data match test assumptions?
+* Which variables to include?

@@ -1,0 +1,210 @@
+---
+title: "1 - Thought experiments"
+author: "Dr James Tripp, CIM (Released under the GPL 3.0)"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+# Introduction
+The topic of this workshop is Bivariate regression - a very simple mathematical model, a line. We will go from the basics of bivariate regression in R to model inference and assumption checking. In the first hour we cover the basic with made up data and in the second hour we progress to the real life data.
+
+This file is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. By using this format you can be introduced to the code with annotations and run sets of the code yourself. All of the code can run by pressing the play button above each cell, or clicking on options under the run button. You can also copy and paste the code into another file or the console.
+
+# Data
+
+We need some data. We will use fictional data.
+
+## Our fictional study
+
+Let us imagine we are interested on the influence of drinks consumed in our local drinking establishment. In particular, how does the amount of substances in drinks influence arcade game performance? We choose to do 3 studies looking at the influence of different amounts of 3 substances: artificial sweetner, alcohol and caffeine.
+
+Our methodology for each substance is to:
+
+1. Prepare 10 drinks with 10, 20, 30, 40, 50, 60, 70, 80, 90 and 100 of the substance mixed with water. (ml for alcohol and sweetner, mg for caffeine)
+2. Choose 10 random people
+3. For each person
+    i) After signing consent forms (keeping everything highly ethical!) give the person the drink to consume
+    ii) Let them play an arcade game
+    iii) Record their score
+
+## Our data
+
+Let us clear our R enviroment
+
+```{r clean_up}
+rm(list=ls())
+```
+
+and create a data frame for each of our data sets. Each data frame is given fake data for model fitting purposes.
+
+```{r echo=TRUE, artifical_data}
+df.sweetner <- data.frame(sweetner = seq(10,100,10), score = c(50, 45, 55, 58, 55, 51, 59, 60, 50, 55))
+df.alcohol <- data.frame(alcohol = seq(10,100,10), score = c(50, 48, 50, 35, 28, 30, 20, 21, 20, 2))
+df.caffeine <- data.frame(caffeine = seq(10,100,10), score = c(42, 55, 60, 70, 68, 75, 78, 60, 50, 30))
+```
+
+We have a predictor (the substance amount) and an outcome (arcade game score) in each data set. These data appear perfect to fit a bivariate regression - a straight line model with one predictor and one outcome.
+
+James will show you how to do this with the alcohol data set. Your task at the end of the demonstration is to try and fit a model to either the sweetner or caffeine data sets.
+
+What does our data set look like? One way to see this is to print out the values.
+
+```{r echo=TRUE, print_artifical_data}
+df.alcohol
+```
+
+What do you notice about the impact of alcohol on score? Is there a relationship between the predictor and the outcome?
+
+Perhaps a plot will make this clearer?
+
+```{r plot_artifical_data}
+plot(df.alcohol)
+```
+
+# A Regression!
+
+We can describe the relationship between alcohol and score with a straight line! Technically this line is a *linear model*. The equation for this line is:
+
+$$
+score_i = \alpha +  \beta \cdot alcohol_i + \epsilon
+$$
+
+This equation may look daunting but stick with it. The equation is to predict the value of score using an intercept (alpha), some random error (epsilon) and the corresponding value of alcohol multiplied by a value we call beta. It is up to R to find the straight line which gets as close to all the points as possible.
+
+## Fitting the regression
+
+We use a function called lm (linear model) to find the line which goes through the data.
+
+```{r regression_fit}
+m1 <- lm(formula = score~alcohol, data = df.alcohol)
+```
+
+An easy way to see this model is on a plot.
+
+```{r plot_regression_line}
+plot(df.alcohol$alcohol, df.alcohol$score)
+abline(m1)
+```
+
+R did a good job! The line goes through most of the data. 
+
+## A linear model?
+
+But how does this relate to the equation you saw earlier? Has R figured out the value of the intercept (start of the line) and the coefficient for alcohol (value to multiply alcohol by)? 
+
+```{r print_m1}
+print(m1)
+```
+
+Printing out m1 tells us the values R chose (the coefficients). The intercept is 57.6 and the coefficient for alcohol is -0.4945. Going back to the equation above, we can calculate a predicted score by multiplying a value of alcohol by -0.4945 and adding the intercept value.
+
+Skeptical? I would be too. Let's check and see if the values match up.
+
+```{r print_predicted}
+df.alcohol$predicted <- 57.6 + (df.alcohol$alcohol * -0.4945)
+print(df.alcohol)
+```
+
+That is pretty good. However, we still miss some points. For example, we miss the actual score when the dose of alcohol is 50ml by about 7. This error is the epsilon in the equation above. R found the straight line with the smallest errors. Well done R! We now know how to fit a bivariate regression model to data.
+
+A small aside: we used a formula when fitting the linear model. Specifically, we told the lm function to create a linear model which predicts score using alccohol. Interestingly, this is a formula object. Note that we do not use apostrophes either side of the statement
+
+```{r}
+class(score ~ alcohol)
+```
+
+instead of
+
+```{r}
+class('score ~ alcohol')
+```
+
+
+## Under the hood
+
+What is this m1 variable? Does it contain only the coefficient values or is there more to it? Let us check the class
+
+```{r m1_class}
+class(m1)
+```
+
+and structure of m1
+
+```{r m1_str} 
+str(m1)
+```
+
+It seems there is a lot more in the m1 variable. Where should we start?
+
+Well, there are the coefficients
+
+```{r m1_coefficients}
+m1$coefficients
+```
+
+and also the errors
+
+```{r m1_residuals}
+m1$residuals
+```
+
+which are the difference between the actual score and the predicted score
+
+```{r calc_predicted}
+df.alcohol$score - df.alcohol$predicted
+```
+
+and the original data
+
+```{r m1_data}
+m1$model
+```
+
+There is more to explore but, alas, we must press on.
+
+We can do more things with a model object (variable) by passing it to a function. A common function used with linear models is summary. The summary function produced details about inferential statistics.
+
+```{r summary}
+summary(m1)
+```
+
+We will go into more detail about this output in the next file. Suffice to say, many people fit linear models explicitely to get this output and in our case indicates alcohol influences score.
+
+## Making predictions
+
+Another function used with linear models is predict. We can ask R what the model predicts for new data. Imagine we gave people even more alcohol.
+
+```{r more_alcohol}
+df.alcohol.more <- data.frame(alcohol = c(200, 250, 300))
+```
+
+We ask R to predict the score using the linear model already fit. In other words, take each new alcohol value and work out the predicted score.
+
+$$
+score_i = 57.6 +  (-0.49455 \cdot alcohol_i)
+$$
+
+We do this using the predict function
+
+```{r prediction?}
+predict(m1, df.alcohol.more)
+```
+
+We can this add new data alonside the old.
+
+```{r with_predictions}
+plot(c(0,300), c(-100, 100), type='n', xlab = 'Alcohol (ml)', ylab = 'Score') # make blank plot
+points(df.alcohol$alcohol, df.alcohol$score, col="blue", pch = 15)
+points(df.alcohol.more$alcohol, predict(m1, df.alcohol.more), col="red", pch = 8)
+abline(m1)
+legend('bottomleft', 
+       legend = c('Data', 'Predicted Data', 'Model'), 
+       col = c('blue', 'red', 'black'), 
+       pch = c(15, 8, 9),
+       text.col = 'Black')
+
+```
+
+Do you believe these predictions? If not, do you think we should be wary of model predictions? As a rule of thumb, models are often as good as the people who choose the terms and interpret the results. On that positive note, it is time for a break followed by the next document! Also, do try and fit a model to the other hypothetical data.

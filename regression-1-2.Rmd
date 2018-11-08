@@ -1,0 +1,158 @@
+---
+title: "2 - Evaluating models"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+Welcome to the second part of the workshop! Here we consider how to evaluate a model.
+
+# Does this model look good on my data?
+
+We have our hypothetical data from the last document and a linear model predicting the score outcome from the amount of alcohol in a drink.
+
+```{r}
+rm(list=ls())
+df.sweetner <- data.frame(sweetner = seq(10,100,10), score = c(50, 45, 55, 58, 55, 51, 59, 60, 50, 55))
+df.alcohol <- data.frame(alcohol = seq(10,100,10), score = c(50, 48, 50, 35, 28, 30, 20, 21, 20, 2))
+df.caffeine <- data.frame(caffeine = seq(10,100,10), score = c(42, 55, 60, 70, 68, 75, 78, 60, 50, 30))
+m1 <- lm(score~ alcohol, data = df.alcohol)
+```
+
+## The fit
+
+We know that our model misses some of the data point. That is to be expected.
+
+```{r m1_residuals}
+m1$residuals
+```
+
+To examine how well our model fits the data we can look at the multiple R-squared (a single value!) in the summary output.
+
+```{r m1_summary}
+summary(m1)
+```
+
+Our Multiple R-squared is 0.9104. Is that good? In a bivariate regression the R-squared tells us the variation in the data accounted for in the model. In other words, the fit of our model to the data. _this is not the true in multiple regression_ 
+
+What is R-squared? Well, R is the correlation coefficient between the predictions of the model and the actual data. At 1 the data and model predictions are the same. In our case, the R-squared value tells us that alcohol accounts for 90% of the variation in the score.
+
+This is good. Both our plots of the model against the data (see below) and the R-squared value tell us our model captures the trend in the data, and this model uses the value of alcohol when creating predictions.
+
+```{r dataVsModel}
+plot(df.alcohol$alcohol, df.alcohol$score)
+abline(m1)
+```
+
+## Uncertainty
+
+Let us assume that our results are typical of people in general. This is quite an assumption and there are very legimitate reasons to not assume this (beyond the fact our study is completely hypothetical, of course). If our small sample is representative of the population then we can use our model to infer something about the population. In our case, consuming more alcohol makes us worse at arcade games.
+
+But how certain are we about the contribution of alcohol to the score? We have a coefficient for alcohol that is -0.49455. This tells us that based on our model then one ml of alcohol decreases arcade games scores by 0.49455. But that value is a point estimate and considering the uncertaintly in this estimate is important. If we look at the summary of m1 we can see that each coefficient has a confidence interval.
+
+```{r m1_confint}
+summary(m1)
+```
+
+The standard Std. Error for the alcohol coefficient is quite small. If the data was more varied then we might expect a larger Std. Error for alcohol. Lets check.
+
+```{r m2_example}
+df.1 <- data.frame(alcohol = seq(10,100,10), score = c(50, 70, 50, 20, 28, 30, 10, 21, 20, 2))
+m2 <- lm(score~alcohol, data = df.1)
+plot(df.1$alcohol, df.1$score)
+abline(m2)
+summary(m2)
+```
+What do we see? As expected, in the new data there is more uncertainty about the value we should add to alcohol (the alcohol coefficient) to predict score.
+
+We can also calculate the a confidence interval around our regression line. The confidence interval show us the range of values of score for each value of alcohol where the true regression line lies. Where many of the values are far from the line then the confidence interval will be greatest. We will use the 95% confidence interval and can calculate this with the predict function.
+
+```{r m2_ci}
+new.data <- data.frame(alcohol = seq(10,100,1)) # value we will calculate the confidence interval for
+m2.ci <- predict(m2, newdata = new.data, interval = "confidence", level = 0.95)
+m2.ci <- as.data.frame(m2.ci) # makes it easier to pick the coluns using syntax we already know
+head(m2.ci) #first few fits and upper and lower condifence interval values
+```
+
+These upper and lower confidence values can be plotted on the same plot as the data.
+
+For our poor fit data
+
+```{r m2_plot_ci}
+plot(c(0,100), c(0,80), type='n', xlab = 'Alcohol (ml)', ylab = 'Score', main = 'Poorly fit alcohol data')
+points(df.1$alcohol, df.1$score, col='black', pch=19)
+abline(m2, col = 'red')
+lines(new.data$alcohol, m2.ci$lwr, col="blue", lty=2)
+lines(new.data$alcohol, m2.ci$upr, col="blue", lty=2)
+```
+
+The R-squared of the poorly fit data (shown above) is 0.7143.
+
+Compare this to the original data.
+
+```{r m1_plot_ci}
+# Generate confidence intervals for the original data
+new.data <- data.frame(alcohol = seq(10,100,1)) # value we will calculate the confidence interval for
+m1.ci <- predict(m1, newdata = new.data, interval = "confidence", level = 0.95)
+m1.ci <- as.data.frame(m1.ci) # makes it easier to pick the coluns using syntax we already know
+
+# Plot our origonal data
+plot(c(0,100), c(0,80), type='n', xlab = 'Alcohol (ml)', ylab = 'Score', main = 'Well fit alcohol data')
+points(df.alcohol$alcohol, df.alcohol$score, col='black', pch=19)
+abline(m1, col = 'red')
+lines(new.data$alcohol, m1.ci$lwr, col="blue", lty=2)
+lines(new.data$alcohol, m1.ci$upr, col="blue", lty=2)
+```
+
+Comparing the two plots we see that there is less uncertainty about the true regression line when the data is clustered around the regression line. This makes intuitive sense. Based on our sample, we can be more certain about the true regression line if our model closely fits the data.
+
+# Inference
+
+It is intersting to fit models and create pretty plots. However, we can (tentatively) try to infer something about alcohol and people based on our linear regression. There are considerable debates about how we should use linear model and these types of statistics (often called frequentist methods). For the purpose of this worksheet we will ignore these debates and consider a standard traditional interpretation of linear regression.
+
+## Does alcohol make a difference?
+
+In the model summary, our alcohol coefficient has a t-value. The t-value is the coefficient estimate divided by the Std. Error. The coefficient is the contribution of, in our case, alcohol on the model prediction. High coefficient values suggest the predictor has a large influences our outcome. However, when the Std. Error. is large we are uncertain about this coefficient and the predictor might not have a large influence on the outcome. In the equation large Std. Error gives us a small t-value.
+
+Why should we care about t-values? We want to know how sure we are that the coefficient for alcohol is not 0. It might be that alcohol has no effect on score (the coefficient is actually 0) and we got unlucky with our sample. This is our *null hypothesis*. The t-distribution allows us to say how confident we are that the true of the coefficient is 0.
+
+The t-distribution has 1 parameter: degrees of freedom (df). For a linear regression the df is n - 1, which comes to 9 for us. In R we can plot a t-distribution with a df of 9.
+
+```{r t_distribution}
+plot(c(-20, 20), c(0,1), type='n', ylab = 'Density', xlab = 't-value', main = 't-distribution with 9 degrees of freedom')
+x <- seq(-20,20,0.1)
+lines(x, dt(x,9), lwd=2, col='blue')
+abline(v=-9.014, col = 'red')
+```
+
+More extreme values of t give us greater confidence that the actual value is not 0 - our null hypothesis is very unlikely. Excellent; our predictor seems to have a  influence on our outcome. Specifically, the probablity of the null hypothesis is <0.001. In a paper, we could describe this as 'Our linear regression of score by alcohol found that alcohol was a highly significant predictor of score'. 
+
+```{r m1_summary_again}
+summary(m1)
+```
+
+
+## What about our model as a whole?
+
+You might notice the F-statistic value in the output of summary(m1). The F-statistic value concerns the model as a whole. The t-value allows us to look at individual coefficients and see if they are significantly different from 0. The F-statistic is a little different; it compares the ammount of variance in the data explained by our model versus the amount of variance our model does not explain. The details of the test are little beyond this session. Crucially, the F-statistic value in summary(m1) refers to the whole model and is more important when a regression has multiple predictors.
+
+Put simply, the F-statistic in our case is explained variation divided by unexplained variance. If the unexplained variance is higher than the explain variance then the value moves closer to 0. If the model explains more variance than the unexplained variance then the value gets higher. Our null hypothesis is that the model does not explain any of the variance in the data - the value is close to 0. 
+
+We can plot the F-distribution in R. Our degrees of freedom are 1 and 8.
+
+```{r f_distribution}
+plot(c(0, 100), c(0,1), type='n', ylab = 'Density', xlab = 'F-value', main = 'F-distribution with df of 1 and 8')
+x <- seq(0,100,0.1)
+lines(x, df(x, df1 = 1, df2 = 8), lwd=2, col='blue')
+abline(v=81.26, col='red')
+```
+
+For our model the F-statistic is 81.26 indicating our model explains a high amount of the total variance (i.e., the explained variance is much higher than the unexplained variance).
+
+Notice that in our case the p-value for the F-statistic of the model and the t-value for the alcohol coefficient are the same and less than <0.001. Some disciplines (such as Psychology) use analysis of variance (ANOVA) and often report F-statistics for individual terms in a model. We can get R to produce the ANOVA value for each term using the anova function.
+
+```{r m1_anova}
+anova(m1)
+```
+

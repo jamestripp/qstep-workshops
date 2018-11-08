@@ -1,0 +1,280 @@
+---
+title: "R Workshop 1 (Term 2) - Bridge"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+Happy new year!
+
+The aim of this workshop is to review the code and analysis I showed you last year.
+
+# Last term
+
+Last term there were three workshops:
+
+* Introduction to R
+* Bivariate linear regression
+* Multiple and Logistic Regression
+
+# Today
+
+We can group the code from last term into three categories
+
+* Exploring
+* Fitting
+* Infering
+
+We loaded/defined data. Then the data was explored. A simple statistical model was fit and an inference made. In other words, we found and answered a question with some data.
+
+In this workshop, we are going to consider the British Social Attitudes survey. We will start off recovering ground and then move into more small group work. The goal here is to help you think about how you can use R to fit, consider and evaluate trends in data. Those who feel a little lost are encouraged to look at my previous workshop materials.
+
+### British Social Attitudes
+
+The BSA is a rich data source and available [here](https://discover.ukdataservice.ac.uk/series/?sn=200006). A copy of the BSA is [here](http://doc.ukdataservice.ac.uk/doc/8252/mrdoc/pdf/8252_bsa_2016_documentation.pdf). There are [technical details](http://www.bsa.natcen.ac.uk/media/39143/bsa34_technical-details_fin.pdf) available which outline how the survey was carried out. The [user guide](http://doc.ukdataservice.ac.uk/doc/8252/mrdoc/pdf/8252_bsa_2016_user_guide.pdf) is useful, too. 
+
+The technical notes also - and very usefully, what nice people! - offer guidance on statistical analysis of the data. The relevent section is at the bottom of the document and is written in readable text. What a relief!
+
+Please download the tab data file containing the BSA responses. You may need to fill in some deails and login using Athens before you can access the data.
+
+### Reading in and writing out
+
+Our data for this workshop is the British Social Attitudes survey (see above). Those of you who attended my workshops last term will be familiar with this data set.
+
+The data is a table. Each row is a person and each column is a response. The file has each row a new line and the columns are seperated by tabs. 
+
+Loading the data is done using a function called read.table. The arguments we give to the function are the filename, the column seperator - a tab or '\t' - and that the first row of files contains the names of our variables. We use the assignment operator <- to save the output of this function (the data R reads in) in the enviroment to a variable called d.
+
+```{r read_data}
+# this is a comment, just to you know. R will not run this line.
+
+# Make sure R is looking at the directory containing the data file
+# You can set the working directory by going to Session > Set Working Directory > Choose Directory 
+
+# read in our data.
+d <- read.table(file = 'bsa16_to_ukda.tab', sep = "\t", header = TRUE)
+```
+
+If we make changes to d then we can write a file - saving the data on the computer.
+
+```{r write_data}
+# We can write the content of d into a file laid out the same way as our origonal data
+write.table(file = 'our_data.tab', sep = '\t', x = d)
+
+# Or we can save the data in an R format
+# The R format will often be smaller but must be loaded in R
+save(d, file = 'our_data.RData')
+
+# We can clear our enviroment and lose d
+rm(list=ls())
+# And load the R file back in
+load(file = 'our_data.RData')
+
+```
+
+### Exploring your variables
+
+The BSA data has lots of variables. We are going to pick a few variables to explore from the documentation. RStudio has a cool autocomplete feature which might help. If you type in d$ into a code area (within the shaded area of this notebook or the console) RStudio will list all the columns in d.
+
+Below we explore the data by looking at the sex, location and marriage status. All of this data is in number format and also need to be recoded (have labels attached to it).
+
+```{r explore_data}
+# sex
+d$Rsex.recode <- factor(x = d$Rsex, labels = c('Male', 'Female'))
+table(d$Rsex.recode)
+plot(d$Rsex.recode)
+
+# location
+d$Country.recode <- factor(x = d$Country, labels = c('England', 'Scotland', 'Wales'))
+table(d$Country.recode)
+plot(d$Country.recode)
+
+# marriage status
+d$Married.recode <- factor(x = d$Married, labels = c('Married/living as married', 'Seperated/divorced', 'Widowed', 'Never married'))
+table(d$Married.recode)
+plot(d$Married.recode, las = 2)
+
+# also
+summary(d$Married.recode)
+head(d$Married.recode)
+str(d$Married.recode)
+```
+
+```{r data_types}
+# A side note on finding out data types
+
+# d is a data frame
+class(d)
+
+# number variables
+class(d$Rsex)
+
+# we turned some variables into categories (factors)
+class(d$Rsex.recode)
+```
+
+We can count data accross categories.
+
+```{r cross_category}
+table(d$Married.recode, d$Country.recode)
+
+# proportions
+plot(d$Country.recode, d$Rsex.recode)
+```
+
+__Group task__
+
+__In your groups, visualise some of the variables. Look at their frequencies. Can you think of any interesting questions you would like to address?__
+
+Something new: Lattice.
+
+```{r lattice}
+# a short introduction is here 
+# https://www.statmethods.net/advgraphs/trellis.html
+library(lattice)
+
+histogram(~d$Rsex.recode | d$Country.recode, type = 'count')
+```
+
+Something a little older: ggplot2
+
+```{r ggplot2}
+#install.packages('ggplot2')
+require('ggplot2')
+
+ggplot(data = d, aes(x = d$Rsex.recode)) +
+  geom_bar() +
+  facet_grid(~Country.recode)
+```
+
+More than two variables.
+
+```{r multivariate}
+ggplot(data = d, aes(x = d$Rsex.recode)) +
+  geom_bar() +
+  facet_grid(Married.recode~Country.recode)
+```
+
+**Break Time! Please do come back in 10 minutes when we'll be fitting models**
+
+
+What about social attitudes? The above are demographics (marriage status, sex, country). Lets choose the following
+
+[FinConf]
+CARD B5  
+Overall, how confident do you feel managing your household's finances?
+1 Very confident
+2 Fairly confident
+3 Not very confident
+4 Not at all confident
+5 SPONTANEOUS: I don't manage my household's finances
+8 (Don't know)
+9 (Refusal)
+
+[GmAware]
+Sometimes benefit claimants use their knowledge of the benefit system to find loopholes in  the rules to increase their benefit payments, without breaking the law. Were you aware of this before the interview?
+1 Yes, I was aware of this
+2 No, I was not aware of this
+8 (Don't know)
+9 (Refusal)
+
+[GameBen]
+CARD B17 AGAIN 
+Suppose someone used a loophole in the system to increase their benefit payments,  without breaking the law. 
+What would your view of this be?
+1 Always wrong
+2 Usually wrong
+3 Sometimes wrong 
+4 Rarely wrong 
+5 Never wrong
+8 (Don't know)
+9 (Refusal)
+
+```{r getting_some_attitude}
+# For each question we will remove participants who gave a don't know, refusal or spontaneous response.
+# Removing these makes our job somewhat easier.
+
+d.1 <- d # new copy of d
+
+# Filter data by one variable each time
+d.1 <- d.1[d.1$FinConf < 5,]
+d.1 <- d.1[d.1$GmAware < 3,]
+d.1 <- d.1[d.1$GameBen < 6,]
+
+# Check out filtering has worked
+table(d.1$FinConf)
+table(d.1$GmAware)
+table(d.1$GameBen)
+
+# Great! Now we can recode the variable for readability reasons
+d.1$FinConf.recode <- factor(x = d.1$FinConf, labels = c("Very confident", "Fairly confident", "Not very confident", "Not at all confident"))
+d.1$GmAware.recode <- factor(x = d.1$GmAware, labels = c("Yes, I was aware of this","No, I was not aware of this"))
+d.1$GameBen.recode <- factor(x = d.1$GameBen, labels = c("Always wrong", "Usually wrong", "Sometimes wrong", " Rarely wrong", "Never wrong"))
+```
+
+Quick exploration.
+
+```{r likert_explorer}
+
+table(d.1$GmAware.recode)
+plot(d.1$GmAware.recode)
+histogram(~d.1$GmAware.recode | d.1$Country.recode, type = 'count')
+histogram(~d.1$GmAware.recode | d.1$Country.recode)
+
+ggplot(data = d.1, aes(x = GmAware.recode)) +
+  geom_bar() +
+  facet_grid(~Rsex.recode)
+
+histogram(~d.1$GmAware.recode | d.1$Rsex.recode)
+
+```
+
+__Group task__
+__In your groups, try and create visualisations using lattice and ggplot2. Can you find any exciting patterns and choose the best way to visualise them?__
+
+### Fitting
+
+What are we going to model today? A few things. First, the above looks interesting and poses an interesting question: 'Is reported sex a good predictor of a persons reported awareness of people using benifit loopholes?'.
+
+#### Logistic regression
+
+A logistic regression is a good model for this. Our outcome is binary (yes or no) as is our predictor (male/female).
+
+```{r logistic_GgAware_by_Rsex}
+m.aware_sex <- glm(GmAware.recode ~ Rsex.recode, data = d.1, family = binomial)
+summary(m.aware_sex)
+```
+
+What about country? We could include country in our model.
+
+```{r logistic_GgAware_by_Rsex_Country}
+m.aware_sex_country <- glm(GmAware.recode ~ Rsex.recode + Country.recode, data = d.1, family = binomial)
+summary(m.aware_sex_country)
+```
+
+What does this tell us? Do we need to look at the interaction of reported sex and location?
+
+```{r logistic_GgAware_by_Rsex_Country_interaction}
+m.aware_sex_country_interaction <- glm(GmAware.recode ~ Rsex.recode * Country.recode, data = d.1, family = binomial)
+summary(m.aware_sex_country_interaction)
+```
+
+What would you conclude, looking at these model fits? How might you investigate the data?
+
+#### Standard regression
+
+What is a good predictor of the percieved 'wrongness' of using benifit loopholes?
+
+How about country? Why do you think there would be a difference based on country?
+
+```{r GameBen_Country}
+# we will use GameBen as a continious variable
+m.gameben_country <- lm(GameBen ~ Country, data = d.1)
+summary(m.gameben_country)
+```
+
+How would you interpret these results?
+
+__Group task__
+*The remainder of the session is your change to ask questions. Try to fit a logistic or regular regression to some more variables. Can you find any exciting relationships? What do you find most challenging about this process?*
