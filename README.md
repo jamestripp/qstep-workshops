@@ -1,5 +1,7 @@
 # QSTEP Workshops
 
+[![DOI](https://zenodo.org/badge/156689147.svg)](https://zenodo.org/badge/latestdoi/156689147)
+
 James delivered a series of workshops to QSTEP students. The focus is teaching basic statistics in R using examples and then generalising to more real data.
 
 The R notebook files for each workshop are hosted here. The HTML version of these notebooks is hosted on another server. The workshops are outlined in the table below (with links to the HTML output) in the order they were delivered.
